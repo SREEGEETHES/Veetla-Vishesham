@@ -1,39 +1,22 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
-  CheckSquare, Square, Trophy, Plus, Calendar, User, 
-  Tag, Clock, Trash, ShoppingCart, HelpCircle, CheckCircle, ListPlus 
+  Plus, Calendar, ShoppingCart, Clock, Trash, ListPlus, CheckCircle, Square 
 } from "lucide-react";
-import { Chore, CalendarEvent, Reminder } from "../types";
+import { CalendarEvent, Reminder } from "../types";
 
-interface SharedViewProps {
-  chores: Chore[];
-  calendarEvents: CalendarEvent[];
-  reminders: Reminder[];
-  onToggleChore: (id: string) => void;
-  onAddChore: (chore: Omit<Chore, "id">) => void;
-  onDeleteChore: (id: string) => void;
-  onAddCalendarEvent: (event: Omit<CalendarEvent, "id">) => void;
-  onDeleteCalendarEvent: (id: string) => void;
-  onAddReminder: (reminder: Omit<Reminder, "id" | "completed">) => void;
-  onDeleteReminder: (id: string) => void;
-  onToggleReminder: (id: string) => void;
-}
+const API_BASE = "/api";
 
-export default function SharedView({
-  chores,
-  calendarEvents,
-  reminders,
-  onToggleChore,
-  onAddChore,
-  onDeleteChore,
-  onAddCalendarEvent,
-  onDeleteCalendarEvent,
-  onAddReminder,
-  onDeleteReminder,
-  onToggleReminder
-}: SharedViewProps) {
-  // Tabs within Shared View: 'calendar' | 'chores' | 'shopping'
-  const [subTab, setSubTab] = useState<'calendar' | 'chores' | 'shopping'>('calendar');
+export default function SharedView() {
+  const [subTab, setSubTab] = useState<'calendar' | 'shopping'>('calendar');
+
+  // Data state
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Approved members for dropdown population
+  interface ApprovedMember { id: number; name: string; }
+  const [approvedMembers, setApprovedMembers] = useState<ApprovedMember[]>([]);
 
   // Input states for adding new calendar events
   const [newEventTitle, setNewEventTitle] = useState("");
@@ -42,65 +25,166 @@ export default function SharedView({
   const [newEventMember, setNewEventMember] = useState("Everyone");
   const [newEventCategory, setNewEventCategory] = useState<'family' | 'school' | 'medical' | 'social'>('family');
 
-  // Input states for chores
-  const [newChoreTitle, setNewChoreTitle] = useState("");
-  const [newChoreAssignee, setNewChoreAssignee] = useState("Dad");
-  const [newChorePoints, setNewChorePoints] = useState(10);
-  const [newChoreDueDate, setNewChoreDueDate] = useState("2026-06-18");
-
   // Input states for Shopping checklist
   const [newShopItem, setNewShopItem] = useState("");
-  const [newShopMember, setNewShopMember] = useState("Mom");
+  const [newShopMember, setNewShopMember] = useState("Everyone");
 
   // Filter schedules by family member
   const [memberFilter, setMemberFilter] = useState("All");
 
-  const totalPoints = chores.filter(c => c.completed).reduce((sum, c) => sum + c.points, 0);
+  const getToken = () => localStorage.getItem("familyos_token") ?? "";
 
-  const handleAddChoreSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newChoreTitle.trim()) return;
-    onAddChore({
-      title: newChoreTitle,
-      assignee: newChoreAssignee,
-      points: Number(newChorePoints),
-      completed: false,
-      dueDate: newChoreDueDate
-    });
-    setNewChoreTitle("");
+  const fetchApprovedMembers = async () => {
+    const token = getToken();
+    try {
+      const res = await fetch(`${API_BASE}/members`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data: { id: number; name: string; approved: boolean }[] = await res.json();
+        setApprovedMembers(data.filter(m => m.approved).map(m => ({ id: m.id, name: m.name })));
+      }
+    } catch { /* silent */ }
   };
 
-  const handleAddEventSubmit = (e: React.FormEvent) => {
+  const fetchEvents = async () => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/events`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data: CalendarEvent[] = await res.json();
+      setEvents(data);
+    }
+  };
+
+  const fetchReminders = async () => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/reminders`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data: Reminder[] = await res.json();
+      setReminders(data);
+    }
+  };
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      await Promise.all([fetchApprovedMembers(), fetchEvents(), fetchReminders()]);
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  // Map member name to id; "Everyone" → null
+  const memberNameToId = (name: string): number | null => {
+    if (name === "Everyone") return null;
+    const found = approvedMembers.find(m => m.name === name);
+    return found ? found.id : null;
+  };
+
+  const handleAddEventSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEventTitle.trim()) return;
-    onAddCalendarEvent({
-      title: newEventTitle,
-      date: newEventDate,
-      time: newEventTime,
-      member: newEventMember,
-      category: newEventCategory
+    const token = getToken();
+    const member_id = memberNameToId(newEventMember);
+    const res = await fetch(`${API_BASE}/events`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        title: newEventTitle,
+        date: newEventDate,
+        time: newEventTime,
+        member_id,
+        category: newEventCategory,
+      }),
     });
-    setNewEventTitle("");
+    if (res.ok) {
+      setNewEventTitle("");
+      await fetchEvents();
+    }
   };
 
-  const handleAddShopSubmit = (e: React.FormEvent) => {
+  const handleDeleteCalendarEvent = async (id: string) => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/events/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      await fetchEvents();
+    }
+  };
+
+  const handleAddShopSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newShopItem.trim()) return;
-    onAddReminder({
-      text: newShopItem,
-      time: "Anytime",
-      member: newShopMember,
-      category: "shopping"
+    const token = getToken();
+    const member_id = memberNameToId(newShopMember);
+    const res = await fetch(`${API_BASE}/reminders`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        text: newShopItem,
+        time: "Anytime",
+        member_id,
+        category: "shopping",
+      }),
     });
-    setNewShopItem("");
+    if (res.ok) {
+      setNewShopItem("");
+      await fetchReminders();
+    }
+  };
+
+  const handleDeleteReminder = async (id: string) => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/reminders/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      await fetchReminders();
+    }
+  };
+
+  const handleToggleReminder = async (id: string) => {
+    const reminder = reminders.find(r => r.id === id);
+    if (!reminder) return;
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/reminders/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ completed: !reminder.completed }),
+    });
+    if (res.ok) {
+      await fetchReminders();
+    }
   };
 
   // Filtered schedule
-  const filteredEvents = calendarEvents.filter(e => 
+  const filteredEvents = events.filter(e => 
     memberFilter === "All" || e.member === memberFilter || e.member === "Everyone"
   );
 
   const groceryList = reminders.filter(r => r.category === "shopping");
+
+  // Build member dropdown options from approved members + fallback labels
+  const memberOptions = [
+    { name: "Everyone", id: null },
+    ...approvedMembers,
+  ];
 
   return (
     <div className="space-y-6 pt-2 pb-12 px-4 max-w-lg mx-auto" id="sharedView">
@@ -112,12 +196,6 @@ export default function SharedView({
           className={`flex-1 py-2.5 rounded-lg text-xs font-sans font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${subTab === 'calendar' ? 'bg-[#dc8e47] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
         >
           <Calendar className="w-4 h-4" /> Calendar
-        </button>
-        <button
-          onClick={() => setSubTab('chores')}
-          className={`flex-1 py-2.5 rounded-lg text-xs font-sans font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${subTab === 'chores' ? 'bg-[#dc8e47] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
-        >
-          <Trophy className="w-4 h-4" /> Chores
         </button>
         <button
           onClick={() => setSubTab('shopping')}
@@ -151,7 +229,11 @@ export default function SharedView({
 
           {/* List of calendar events */}
           <div className="space-y-3">
-            {filteredEvents.map((evt) => (
+            {loading && events.length === 0 ? (
+              <div className="text-center p-8 bg-slate-50 rounded-2xl text-slate-400 text-xs">
+                Loading events...
+              </div>
+            ) : filteredEvents.map((evt) => (
               <div 
                 key={evt.id}
                 className="bg-white rounded-xl p-4 border border-orange-100/40 shadow-xs hover:border-orange-200/50 transition-all flex justify-between items-start"
@@ -175,7 +257,7 @@ export default function SharedView({
                 </div>
                 
                 <button
-                  onClick={() => onDeleteCalendarEvent(evt.id)}
+                  onClick={() => handleDeleteCalendarEvent(evt.id)}
                   className="p-1 rounded-lg text-slate-300 hover:text-[#ba1a1a] transition-all hover:bg-slate-50 cursor-pointer"
                   title="Delete event"
                 >
@@ -184,7 +266,7 @@ export default function SharedView({
               </div>
             ))}
 
-            {filteredEvents.length === 0 && (
+            {!loading && filteredEvents.length === 0 && (
               <div className="text-center p-8 bg-slate-50 rounded-2xl text-slate-400 text-xs">
                 No scheduled meetups are matching this filter.
               </div>
@@ -238,17 +320,16 @@ export default function SharedView({
                   onChange={(e) => setNewEventMember(e.target.value)}
                   className="w-full bg-[#fdfaf7] border border-slate-200 rounded-xl px-2 py-1.5 text-xs font-sans outline-none"
                 >
-                  <option value="Everyone">Everyone</option>
-                  <option value="Mom">Mom</option>
-                  <option value="Dad">Dad</option>
-                  <option value="Kids">Kids</option>
+                  {memberOptions.map(m => (
+                    <option key={m.name} value={m.name}>{m.name}</option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Category</label>
                 <select 
                   value={newEventCategory}
-                  onChange={(e) => setNewEventCategory(e.target.value as any)}
+                  onChange={(e) => setNewEventCategory(e.target.value as 'family' | 'school' | 'medical' | 'social')}
                   className="w-full bg-[#fdfaf7] border border-slate-200 rounded-xl px-2 py-1.5 text-xs font-sans outline-none"
                 >
                   <option value="family">Family</option>
@@ -269,132 +350,7 @@ export default function SharedView({
         </div>
       )}
 
-      {/* --- SUB TAB 2: CHORE SCOREBOARD --- */}
-      {subTab === 'chores' && (
-        <div className="space-y-5 animate-fade-in text-left">
-          
-          {/* Chore Score tracking card */}
-          <div className="bg-gradient-to-r from-[#ffdcc2] to-[#bde9ff] rounded-2xl p-4 text-left flex justify-between items-center shadow-xs">
-            <div>
-              <p className="text-[10px] uppercase font-bold text-slate-600 tracking-wider">Miller Family Scoreboard</p>
-              <h4 className="font-sans font-extrabold text-[#8e4e08] text-2xl mt-0.5">{totalPoints} Points</h4>
-              <p className="text-xs text-slate-500 mt-1">Completed duties contribute points towards family rewards!</p>
-            </div>
-            <Trophy className="w-12 h-12 text-[#dc8e47] opacity-80" />
-          </div>
-
-          {/* Chore item components list */}
-          <div className="space-y-3">
-            {chores.map((chore) => (
-              <div 
-                key={chore.id}
-                className={`bg-white rounded-xl p-4 border border-slate-100 shadow-xs flex items-center justify-between transition-all ${chore.completed ? 'bg-slate-50/70 border-slate-200/50' : ''}`}
-              >
-                <div className="flex items-center gap-3">
-                  <button 
-                    onClick={() => onToggleChore(chore.id)}
-                    className="flex-shrink-0 text-[#006783] hover:opacity-80 transition cursor-pointer"
-                  >
-                    {chore.completed ? (
-                      <CheckCircle className="w-6 h-6 text-[#dc8e47] fill-[#ffdcc2]/50" />
-                    ) : (
-                      <Square className="w-6 h-6 text-slate-300" />
-                    )}
-                  </button>
-                  <div>
-                    <h4 className={`font-sans font-bold text-slate-800 text-sm ${chore.completed ? 'line-through text-slate-400' : ''}`}>
-                      {chore.title}
-                    </h4>
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      Due: {chore.dueDate} • Assignee: <strong className="text-slate-600">{chore.assignee}</strong>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${chore.completed ? 'bg-slate-100 text-slate-400' : 'bg-orange-50 text-[#8e4e08]'}`}>
-                    +{chore.points} pts
-                  </span>
-                  <button
-                    onClick={() => onDeleteChore(chore.id)}
-                    className="p-1 rounded-md text-slate-300 hover:text-red-500 hover:bg-slate-100 transition-all cursor-pointer"
-                  >
-                    <Trash className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {chores.length === 0 && (
-              <div className="text-center p-8 bg-slate-50 rounded-2xl text-slate-400 text-xs">
-                No chores registered on scoreboard! Put up dynamic housework tasks.
-              </div>
-            )}
-          </div>
-
-          {/* Add Chore form */}
-          <form onSubmit={handleAddChoreSubmit} className="bg-white rounded-2xl p-5 border border-[#d8c2b3]/20 shadow-xs space-y-3">
-            <h3 className="font-sans font-bold text-slate-800 text-base mb-1">Add Housework Chore</h3>
-            
-            <div>
-              <input 
-                type="text"
-                placeholder="e.g. Lawn mowing, watering flowers, clearing dishes..."
-                required
-                value={newChoreTitle}
-                onChange={(e) => setNewChoreTitle(e.target.value)}
-                className="w-full bg-[#fdfaf7] border border-slate-200 rounded-xl px-3 py-2 text-xs font-sans outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Score Pts</label>
-                <input 
-                  type="number"
-                  required
-                  min="5"
-                  max="100"
-                  value={newChorePoints}
-                  onChange={(e) => setNewChorePoints(Number(e.target.value))}
-                  className="w-full bg-[#fdfaf7] border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-sans outline-none"
-                />
-              </div>
-              <div className="col-span-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Due Date</label>
-                <input 
-                  type="date"
-                  required
-                  value={newChoreDueDate}
-                  onChange={(e) => setNewChoreDueDate(e.target.value)}
-                  className="w-full bg-[#fdfaf7] border border-slate-200 rounded-xl px-2 py-1.5 text-xs font-sans outline-none"
-                />
-              </div>
-              <div className="col-span-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Assign To</label>
-                <select 
-                  value={newChoreAssignee}
-                  onChange={(e) => setNewChoreAssignee(e.target.value)}
-                  className="w-full bg-[#fdfaf7] border border-slate-200 rounded-xl px-1.5 py-1.5 text-xs font-sans outline-none"
-                >
-                  <option value="Dad">Dad</option>
-                  <option value="Mom">Mom</option>
-                  <option value="Kids">Kids</option>
-                </select>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-[#8e4e08] hover:bg-[#dc8e47] text-white py-2.5 rounded-xl text-xs font-bold font-sans transition-all active:scale-98 shadow-xs cursor-pointer flex items-center justify-center gap-1"
-            >
-              <Plus className="w-4 h-4" /> Assign Chore
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* --- SUB TAB 3: GROCERY & SHOPPING CHECKLIST --- */}
+      {/* --- SUB TAB 2: GROCERY & SHOPPING CHECKLIST --- */}
       {subTab === 'shopping' && (
         <div className="space-y-5 animate-fade-in text-left">
           
@@ -410,14 +366,18 @@ export default function SharedView({
 
           {/* List of items */}
           <div className="space-y-2.5">
-            {groceryList.map((shop) => (
+            {loading && reminders.length === 0 ? (
+              <div className="text-center p-8 bg-slate-50 rounded-2xl text-slate-400 text-xs">
+                Loading items...
+              </div>
+            ) : groceryList.map((shop) => (
               <div 
                 key={shop.id}
                 className={`bg-white rounded-xl p-3 border border-slate-100 shadow-xs flex items-center justify-between transition-all ${shop.completed ? 'bg-slate-50/60 opacity-60' : ''}`}
               >
                 <div className="flex items-center gap-3">
                   <button 
-                    onClick={() => onToggleReminder(shop.id)}
+                    onClick={() => handleToggleReminder(shop.id)}
                     className="flex-shrink-0 text-slate-400 hover:text-[#006783] cursor-pointer"
                   >
                     {shop.completed ? (
@@ -437,7 +397,7 @@ export default function SharedView({
                 </div>
 
                 <button
-                  onClick={() => onDeleteReminder(shop.id)}
+                  onClick={() => handleDeleteReminder(shop.id)}
                   className="p-1 rounded-md text-slate-300 hover:text-red-500 transition cursor-pointer"
                 >
                   <Trash className="w-4 h-4" />
@@ -445,7 +405,7 @@ export default function SharedView({
               </div>
             ))}
 
-            {groceryList.length === 0 && (
+            {!loading && groceryList.length === 0 && (
               <div className="text-center p-8 bg-slate-50 rounded-2xl text-slate-400 text-xs">
                 Shopping list is completely dry! Buy milk or stock cookies.
               </div>
@@ -470,9 +430,9 @@ export default function SharedView({
                 onChange={(e) => setNewShopMember(e.target.value)}
                 className="bg-[#fdfaf7] border border-slate-200 rounded-xl px-2 text-xs font-sans outline-none"
               >
-                <option value="Mom">Mom</option>
-                <option value="Dad">Dad</option>
-                <option value="Everyone">Everyone</option>
+                {memberOptions.map(m => (
+                  <option key={m.name} value={m.name}>{m.name}</option>
+                ))}
               </select>
             </div>
 

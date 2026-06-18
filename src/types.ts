@@ -75,3 +75,36 @@ export interface FamilyState {
   sosStatuses: SOSStatus[];
   notifications: NotificationItem[];
 }
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: 'admin' | 'member';
+  approved: boolean;
+  avatar?: string;
+}
+
+export interface Task {
+  id: number;
+  title: string;
+  description?: string;
+  assignee_id: number;
+  assignee_name?: string;
+  created_by: number;
+  due_date: string;
+  completed: boolean;
+  points: number;
+  category: string;
+  created_at: string;
+}
+
+export interface FamilyCall {
+  id: number;
+  caller_id: number;
+  caller_name?: string;
+  callee_id: number;
+  callee_name?: string;
+  status: 'pending' | 'active' | 'ended';
+  created_at: string;
+}

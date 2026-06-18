@@ -1,24 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
-  Mic, CheckCircle, Circle, Heart, Gift, Shield, Compass, Sparkles, 
-  AlertCircle, ArrowRight, PhoneCall, Phone, PhoneOff, Volume2, Clock 
+  Mic, CheckCircle, Circle, Heart, Gift, Shield, Sparkles, 
+  PhoneCall, Compass
 } from "lucide-react";
-import { Reminder, FamilyMember } from "../types";
+import { Reminder, User, Task } from "../types";
 import { motion } from "motion/react";
 
 interface HomeViewProps {
-  reminders: Reminder[];
-  onToggleReminder: (id: string) => void;
   onNavigateToTab: (index: number) => void;
   onGenerateGiftSuggestions: (query: string, recipient: string) => Promise<string[]>;
+  currentUser?: User;
 }
 
 export default function HomeView({ 
-  reminders, 
-  onToggleReminder, 
   onNavigateToTab,
-  onGenerateGiftSuggestions 
+  onGenerateGiftSuggestions,
+  currentUser 
 }: HomeViewProps) {
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+
   // AI gift drawer states
   const [giftDrawerOpen, setGiftDrawerOpen] = useState(false);
   const [giftQuery, setGiftQuery] = useState("");
@@ -26,14 +28,67 @@ export default function HomeView({
   const [loadingGifts, setLoadingGifts] = useState(false);
   const [derivedGifts, setDerivedGifts] = useState<string[]>([]);
 
-  // Simulated Dynamic Call Alerts state
-  const [simulatedCallActive, setSimulatedCallActive] = useState(false);
-  const [simulatedCallStatus, setSimulatedCallStatus] = useState<'ringing' | 'active' | 'snoozed' | 'declined'>('ringing');
+  // Fetch reminders and tasks on mount
+  useEffect(() => {
+    const token = localStorage.getItem("familyos_token");
+    const headers = { Authorization: "Bearer " + token };
+
+    Promise.all([
+      fetch("/api/reminders", { headers }),
+      fetch("/api/tasks", { headers }),
+    ])
+      .then(([remRes, taskRes]) =>
+        Promise.all([remRes.json(), taskRes.json()])
+      )
+      .then(([remData, taskData]) => {
+        setReminders(Array.isArray(remData) ? remData : []);
+        // Show top 3-5 upcoming/pending tasks
+        const pending = Array.isArray(taskData)
+          ? taskData
+              .filter((t: Task) => !t.completed)
+              .slice(0, 5)
+          : [];
+        setTasks(pending);
+      })
+      .catch((err) => {
+        console.error("Failed to load dashboard data:", err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  const handleToggleReminder = async (id: string, current: boolean) => {
+    const token = localStorage.getItem("familyos_token");
+    try {
+      const res = await fetch(`/api/reminders/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({ completed: !current }),
+      });
+      if (res.ok) {
+        setReminders((prev) =>
+          prev.map((r) =>
+            r.id === id ? { ...r, completed: !current } : r
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Failed to toggle reminder:", err);
+    }
+  };
 
   // Calculate birthday countdown (Saturday June 20, 2026. Ref day June 17, 2026 is Wed, in 3 days)
   const currentDay = 17;
   const bdayDay = 20;
   const daysLeft = bdayDay - currentDay;
+
+  // Get greeting based on time of day
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
   const handleOpenGifts = () => {
     setGiftDrawerOpen(true);
@@ -52,22 +107,13 @@ export default function HomeView({
     }
   };
 
-  const handleTriggerCallSim = () => {
-    setSimulatedCallStatus('ringing');
-    setSimulatedCallActive(true);
-  };
-
-  const handleSnoozeCall = () => {
-    setSimulatedCallStatus('snoozed');
-  };
-
-  const handleDeclineCall = () => {
-    setSimulatedCallStatus('declined');
-  };
-
-  const handleAnswerCall = () => {
-    setSimulatedCallStatus('active');
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center pt-32">
+        <div className="animate-spin w-8 h-8 border-4 border-[#dc8e47] border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pt-2 pb-12 px-4 max-w-lg mx-auto" id="homeView">
@@ -75,8 +121,8 @@ export default function HomeView({
       {/* Welcome Section */}
       <section className="mt-2 animate-fade-in text-left">
         <h2 className="font-sans font-extrabold text-[#1a1c1c] text-[32px] leading-10 tracking-tight">
-          Good Morning, <br />
-          <span className="text-[#dc8e47]">The Millers</span>
+          {greeting}, <br />
+          <span className="text-[#dc8e47]">{currentUser?.name || "Family"}</span>
         </h2>
         <p className="font-sans text-[18px] text-slate-500 mt-1 leading-normal font-normal">
           Everything is running smoothly today.
@@ -126,7 +172,7 @@ export default function HomeView({
                 className="flex items-center gap-3 p-3 bg-[#fdfaf7] rounded-xl border border-[#d8c2b3]/10"
               >
                 <button 
-                  onClick={() => onToggleReminder(item.id)}
+                  onClick={() => handleToggleReminder(item.id, item.completed)}
                   className="flex-shrink-0 text-[#006783] hover:opacity-80 transition cursor-pointer"
                 >
                   {item.completed ? (
@@ -157,26 +203,29 @@ export default function HomeView({
             onClick={() => onNavigateToTab(1)} // Redirects to calendar list
             className="w-full mt-4 py-3 rounded-xl border border-[#006783] text-[#006783] font-sans font-bold text-sm hover:bg-[#bde9ff]/30 active:scale-98 transition-all cursor-pointer"
           >
-            View Full Calendar & Chores
+            View Full Calendar & Shopping
           </button>
         </section>
 
-        {/* Dynamic Simulated Call alerts ringer trigger */}
-        <section className="bg-white rounded-2xl p-5 border border-[#d8c2b3]/25 shadow-xs relative overflow-hidden text-left">
+        {/* Call Alerts Shortcut */}
+        <section 
+          onClick={() => onNavigateToTab(5)} // Navigate to CallsView tab
+          className="bg-white rounded-2xl p-5 border border-[#d8c2b3]/25 shadow-xs relative overflow-hidden text-left cursor-pointer hover:border-[#dc8e47]/40 transition-all"
+        >
           <div className="absolute right-0 top-0 p-4 opacity-10">
             <PhoneCall className="w-14 h-14 text-[#dc8e47]" />
           </div>
           <div className="space-y-1">
-            <h3 className="font-sans font-bold text-[#1a1c1c] text-lg">Incoming Call Alerts</h3>
+            <h3 className="font-sans font-bold text-[#1a1c1c] text-lg">Family Calls</h3>
             <p className="text-xs text-slate-500 leading-normal">
-              Scheduled tasks trigger integrated multi-device voice synthesis systems. Turn on live simulator below!
+              Start a video or audio call with any family member instantly.
             </p>
           </div>
           <button
-            onClick={handleTriggerCallSim}
+            onClick={(e) => { e.stopPropagation(); onNavigateToTab(5); }}
             className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-[#dc8e47] to-[#8e4e08] hover:to-[#dc8e47] text-white font-sans font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-all active:scale-98 cursor-pointer border-none"
           >
-            <PhoneCall className="w-4 h-4 animate-bounce" /> Simulate Call Reminder ("Grandma")
+            <PhoneCall className="w-4 h-4" /> Open Family Calls
           </button>
         </section>
 
@@ -225,6 +274,34 @@ export default function HomeView({
             </div>
           </div>
         </section>
+
+        {/* Tasks Preview Block */}
+        {tasks.length > 0 && (
+          <section className="bg-white rounded-2xl p-5 border border-[#d8c2b3]/20 shadow-xs text-left">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-sans font-bold text-[#1a1c1c] text-lg">Upcoming Tasks</h3>
+            </div>
+            <div className="space-y-2">
+              {tasks.map((task) => (
+                <div key={task.id} className="flex items-center gap-3 p-3 bg-[#fdfaf7] rounded-xl border border-[#d8c2b3]/10">
+                  <Circle className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-sans font-semibold text-sm text-slate-800 truncate">{task.title}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {task.assignee_name ?? "Unassigned"} • Due {task.due_date}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => onNavigateToTab(2)}
+              className="w-full mt-4 py-3 rounded-xl border border-[#8e4e08] text-[#8e4e08] font-sans font-bold text-sm hover:bg-orange-50/30 active:scale-98 transition-all cursor-pointer"
+            >
+              View All Tasks
+            </button>
+          </section>
+        )}
 
         {/* Secure Vault Shortcut Preview */}
         <section 
@@ -326,151 +403,6 @@ export default function HomeView({
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* FULL SCREEN INCOMING CALL REMINDER OVERLAY */}
-      {simulatedCallActive && (
-        <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-md z-50 flex flex-col justify-between p-6 text-white animate-fade-in max-w-lg mx-auto">
-          {simulatedCallStatus === 'ringing' && (
-            <div className="flex-1 flex flex-col items-center justify-center space-y-8 my-auto relative">
-              {/* Pulsing ring indicator */}
-              <div className="relative">
-                <div className="absolute inset-0 rounded-full bg-orange-500/20 scale-150 animate-ping"></div>
-                <div className="absolute inset-0 rounded-full bg-cyan-400/10 scale-125 animate-ping"></div>
-                <div className="w-32 h-32 rounded-full border-4 border-[#dc8e47] overflow-hidden shadow-2xl relative z-10">
-                  <img 
-                    alt="Grandma Avatar" 
-                    className="w-full h-full object-cover" 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCj0SLM6vB0swgjRMW649bRcHXtkIsb91RMFKt61wm67N7MMSsWXQrXxViKCYFAHU4DxFot65S-b2RsC2zgRD3zqJQ6BONzMTBW4n7ttcxl_3FAbPap6UNJY4Qf7Vsepm20WMdm5r8FqXUmLUb0EJyVMvnIxk1vo3sHnxuzOP1pDw0QIF4xygqsGhDfxNz74_UWBrlFYXjS7Qm0aj6sDQq7xmXi6tTpYneAYFcA9MQMT9Or8COHc0djLdg974jMoRsHWnnWZ9kX3F8"
-                  />
-                </div>
-              </div>
-
-              <div className="text-center space-y-2">
-                <p className="text-xs uppercase tracking-widest font-mono text-cyan-400 font-extrabold">Active Call Reminder</p>
-                <h3 className="text-3xl font-extrabold font-sans text-white">Grandma (Call Alert)</h3>
-                <p className="text-sm text-slate-400 max-w-xs mx-auto italic">
-                  Scheduled Alert System • "Confirm if high tea scones are packed"
-                </p>
-              </div>
-
-              {/* Ringer visualizer */}
-              <div className="flex gap-1.5 items-center justify-center h-8 my-2">
-                <span className="w-1 h-3 bg-[#dc8e47] rounded-full animate-bounce"></span>
-                <span className="w-1 h-6 bg-[#3fccfd] rounded-full animate-bounce delay-75"></span>
-                <span className="w-1 h-8 bg-white rounded-full animate-bounce delay-150"></span>
-                <span className="w-1 h-5 bg-[#3fccfd] rounded-full animate-bounce delay-100"></span>
-                <span className="w-1 h-3 bg-[#dc8e47] rounded-full animate-bounce"></span>
-              </div>
-
-              {/* Interaction buttons */}
-              <div className="w-full max-w-xs grid grid-cols-3 gap-4 pt-12">
-                {/* Snooze Call */}
-                <button 
-                  onClick={handleSnoozeCall}
-                  className="flex flex-col items-center gap-2 text-slate-400 hover:text-white transition cursor-pointer"
-                >
-                  <span className="p-4 bg-slate-800 rounded-full hover:bg-slate-700 transition flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-slate-300" />
-                  </span>
-                  <span className="text-[10px] font-bold">Snooze 10m</span>
-                </button>
-
-                {/* Decline */}
-                <button 
-                  onClick={handleDeclineCall}
-                  className="flex flex-col items-center gap-2 text-red-400 hover:text-red-300 transition cursor-pointer"
-                >
-                  <span className="p-4 bg-red-600 rounded-full hover:bg-red-500 transition flex items-center justify-center">
-                    <PhoneOff className="w-6 h-6 text-white" />
-                  </span>
-                  <span className="text-[10px] font-bold">Decline</span>
-                </button>
-
-                {/* Answer Call info */}
-                <button 
-                  onClick={handleAnswerCall}
-                  className="flex flex-col items-center gap-2 text-emerald-400 hover:text-emerald-300 transition cursor-pointer"
-                >
-                  <span className="p-4 bg-emerald-600 rounded-full hover:bg-emerald-500 transition animate-bounce flex items-center justify-center">
-                    <Phone className="w-6 h-6 text-white" />
-                  </span>
-                  <span className="text-[10px] font-bold">Answer AI</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {simulatedCallStatus === 'active' && (
-            <div className="flex-1 flex flex-col justify-between py-12">
-              <div className="flex flex-col items-center space-y-4">
-                <div className="w-20 h-20 rounded-full border-2 border-emerald-500 overflow-hidden relative">
-                  <img 
-                    alt="Grandma Avatar"
-                    className="w-full h-full object-cover" 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCj0SLM6vB0swgjRMW649bRcHXtkIsb91RMFKt61wm67N7MMSsWXQrXxViKCYFAHU4DxFot65S-b2RsC2zgRD3zqJQ6BONzMTBW4n7ttcxl_3FAbPap6UNJY4Qf7Vsepm20WMdm5r8FqXUmLUb0EJyVMvnIxk1vo3sHnxuzOP1pDw0QIF4xygqsGhDfxNz74_UWBrlFYXjS7Qm0aj6sDQq7xmXi6tTpYneAYFcA9MQMT9Or8COHc0djLdg974jMoRsHWnnWZ9kX3F8"
-                  />
-                  <div className="absolute inset-0 bg-emerald-500/10 animate-pulse"></div>
-                </div>
-                <h4 className="font-sans font-extrabold text-xl">Connecting with Grandma...</h4>
-                <p className="text-xs font-mono text-emerald-400 uppercase tracking-widest animate-pulse">
-                  AI Voice Synthesizer active
-                </p>
-              </div>
-
-              {/* simulated transcription dialogue */}
-              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-3 max-w-sm mx-auto text-left">
-                <div className="flex items-center gap-2 text-[#dc8e47]">
-                  <Volume2 className="w-4 h-4 animate-bounce" />
-                  <span className="text-[10px] font-bold font-mono uppercase tracking-wider">Simulated Audio Broadcast</span>
-                </div>
-                <p className="text-xs text-slate-200 leading-relaxed font-sans italic">
-                  "Hello sweetie! Oh, I am so glad safety dials called me back seamlessly! I just wanted to remind you to pack scones for high tea tomorrow at 4:30 PM. Tell Dad the leaves are looking beautiful!"
-                </p>
-              </div>
-
-              <div className="flex flex-col items-center space-y-4">
-                <button 
-                  onClick={() => setSimulatedCallActive(false)}
-                  className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-500 active:scale-95 transition shadow-lg cursor-pointer"
-                >
-                  <PhoneOff className="w-8 h-8 text-white" />
-                </button>
-                <span className="text-[10px] text-slate-400">End simulated reminder session</span>
-              </div>
-            </div>
-          )}
-
-          {simulatedCallStatus === 'snoozed' && (
-            <div className="flex-1 flex flex-col items-center justify-center space-y-4">
-              <span className="text-amber-400 text-lg uppercase tracking-widest font-extrabold font-mono">Alert Snoozed</span>
-              <p className="text-xs text-slate-400 text-center max-w-xs leading-relaxed">
-                We will repeat this urgent family call reminder alert in 10 minutes to verify your task execution.
-              </p>
-              <button 
-                onClick={() => setSimulatedCallActive(false)}
-                className="bg-slate-800 hover:bg-slate-700 px-6 py-2.5 rounded-full text-xs font-bold transition font-sans cursor-pointer"
-              >
-                Return to Dashboard
-              </button>
-            </div>
-          )}
-
-          {simulatedCallStatus === 'declined' && (
-            <div className="flex-1 flex flex-col items-center justify-center space-y-4">
-              <span className="text-rose-400 text-lg uppercase tracking-widest font-extrabold font-mono">Alert Silenced</span>
-              <p className="text-xs text-slate-400 text-center max-w-xs leading-relaxed">
-                The reminder alert has been silenced and cached onto your "Pending Call Tasks" dashboard checklist.
-              </p>
-              <button 
-                onClick={() => setSimulatedCallActive(false)}
-                className="bg-slate-800 hover:bg-slate-700 px-6 py-2.5 rounded-full text-xs font-bold transition font-sans cursor-pointer"
-              >
-                Return to Dashboard
-              </button>
-            </div>
-          )}
         </div>
       )}
 

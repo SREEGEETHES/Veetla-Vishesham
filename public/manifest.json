@@ -1,0 +1,35 @@
+{
+  "name": "FamilyOS",
+  "short_name": "FamilyOS",
+  "description": "Your family's shared operating system — tasks, calendar, vault, and more.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9f9f9",
+  "theme_color": "#dc8e47",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "lifestyle"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Tasks",
+      "short_name": "Tasks",
+      "url": "/?tab=tasks",
+      "description": "Manage family tasks and scoreboard"
+    },
+    {
+      "name": "Family Space",
+      "short_name": "Space",
+      "url": "/?tab=shared",
+      "description": "Calendar and shopping list"
+    }
+  ]
+}

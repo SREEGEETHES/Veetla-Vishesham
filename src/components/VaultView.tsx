@@ -1,14 +1,21 @@
-import React, { useState, useRef } from "react";
-import { Lock, Unlock, Eye, EyeOff, Shield, RefreshCw, Plus, Trash, FileUp, KeyRound, Check } from "lucide-react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { Lock, Unlock, Eye, EyeOff, Shield, KeyRound, Plus, Trash, FileUp, Download } from "lucide-react";
 import { VaultSecret } from "../types";
 
-interface VaultViewProps {
-  secrets: VaultSecret[];
-  onAddSecret: (secret: Omit<VaultSecret, "id" | "lastUpdated">) => void;
-  onDeleteSecret: (id: string) => void;
+interface VaultFile {
+  id: number;
+  user_id: number;
+  uploaded_by_name?: string;
+  filename: string;
+  original_name: string;
+  mime_type: string;
+  size: number;
+  created_at: string;
 }
 
-export default function VaultView({ secrets, onAddSecret, onDeleteSecret }: VaultViewProps) {
+interface VaultViewProps {}
+
+export default function VaultView({}: VaultViewProps) {
   const [pin, setPin] = useState("");
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [pinError, setPinError] = useState("");
@@ -22,10 +29,52 @@ export default function VaultView({ secrets, onAddSecret, onDeleteSecret }: Vaul
 
   // File Drag and Drop states
   const [dragActive, setDragActive] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string, size: string, date: string }>>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<VaultFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Secrets state
+  const [secrets, setSecrets] = useState<VaultSecret[]>([]);
+  const [loading, setLoading] = useState(false);
+
   const correctPin = "1234";
+  const token = localStorage.getItem("familyos_token") || "";
+
+  const fetchSecrets = useCallback(async () => {
+    try {
+      const res = await fetch("/api/vault/items", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSecrets(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch vault items", err);
+    }
+  }, [token]);
+
+  const fetchFiles = useCallback(async () => {
+    try {
+      const res = await fetch("/api/vault/files", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUploadedFiles(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch vault files", err);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (isUnlocked) {
+      setLoading(true);
+      Promise.all([fetchSecrets(), fetchFiles()]).finally(() => setLoading(false));
+    }
+  }, [isUnlocked, fetchSecrets, fetchFiles]);
 
   const handleKeypadPress = (val: string) => {
     setPinError("");
@@ -56,18 +105,89 @@ export default function VaultView({ secrets, onAddSecret, onDeleteSecret }: Vaul
     setUnveiledMap(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handleAddSecretSubmit = (e: React.FormEvent) => {
+  const handleAddSecretSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newSecret.trim()) return;
-    onAddSecret({
-      title: newTitle,
-      type: newType,
-      secret: newSecret,
-      note: newNote
-    });
+
+    try {
+      const res = await fetch("/api/vault/items", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: newTitle,
+          type: newType,
+          secret: newSecret,
+          note: newNote,
+        }),
+      });
+      if (res.ok) {
+        // Refetch both items and files to stay in sync
+        await Promise.all([fetchSecrets(), fetchFiles()]);
+      }
+    } catch (err) {
+      console.error("Failed to add secret", err);
+    }
+
     setNewTitle("");
     setNewSecret("");
     setNewNote("");
+  };
+
+  const handleDeleteSecret = async (id: string) => {
+    try {
+      const res = await fetch(`/api/vault/items/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        // Refetch both items and files to stay in sync
+        await Promise.all([fetchSecrets(), fetchFiles()]);
+      }
+    } catch (err) {
+      console.error("Failed to delete secret", err);
+    }
+  };
+
+  // --- Real API File Upload ---
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    setUploadProgress(0);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => Math.min(prev + 20, 90));
+    }, 200);
+
+    try {
+      const res = await fetch("/api/vault/upload", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      if (res.ok) {
+        // Refresh file list
+        fetchFiles();
+      } else {
+        console.error("Upload failed", await res.text());
+      }
+    } catch (err) {
+      console.error("Upload error", err);
+    } finally {
+      setTimeout(() => {
+        setUploading(false);
+        setUploadProgress(0);
+      }, 800);
+    }
   };
 
   // Drag and drop mechanics
@@ -87,37 +207,45 @@ export default function VaultView({ secrets, onAddSecret, onDeleteSecret }: Vaul
     setDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      addUploadedFile(e.dataTransfer.files[0]);
+      handleUpload(e.dataTransfer.files[0]);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      addUploadedFile(e.target.files[0]);
+      handleUpload(e.target.files[0]);
     }
-  };
-
-  const addUploadedFile = (file: File) => {
-    const sizeStr = file.size > 1024 * 1024 
-      ? (file.size / (1024 * 1024)).toFixed(1) + " MB" 
-      : (file.size / 1024).toFixed(0) + " KB";
-    
-    setUploadedFiles(prev => [
-      ...prev, 
-      {
-        name: file.name,
-        size: sizeStr,
-        date: new Date().toLocaleDateString()
-      }
-    ]);
   };
 
   const triggerFileSelect = () => {
     fileInputRef.current?.click();
   };
 
-  const handleDeleteFile = (idx: number) => {
-    setUploadedFiles(prev => prev.filter((_, i) => i !== idx));
+  const handleDeleteFile = async (id: number) => {
+    try {
+      const res = await fetch(`/api/vault/files/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setUploadedFiles(prev => prev.filter(f => f.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to delete file", err);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes > 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+    return (bytes / 1024).toFixed(0) + " KB";
+  };
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString();
+    } catch {
+      return dateStr;
+    }
   };
 
   return (
@@ -220,14 +348,14 @@ export default function VaultView({ secrets, onAddSecret, onDeleteSecret }: Vaul
                     <div className="flex gap-1">
                       <button
                         onClick={() => toggleUnveil(sec.id)}
-                        className="p-1 px-1.5 text-slate-400 rounded-lg hover:text-[#006783] hover:bg-slate-50 transition"
+                        className="p-1 px-1.5 text-slate-400 rounded-lg hover:text-[#006783] hover:bg-slate-50 transition cursor-pointer"
                         title={isVeiled ? "Unveil credential" : "Mask credential"}
                       >
                         {isVeiled ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </button>
                       <button
-                        onClick={() => onDeleteSecret(sec.id)}
-                        className="p-1 text-slate-300 rounded-lg hover:text-red-500 hover:bg-slate-50 transition"
+                        onClick={() => handleDeleteSecret(sec.id)}
+                        className="p-1 text-slate-300 rounded-lg hover:text-red-500 hover:bg-slate-50 transition cursor-pointer"
                         title="Delete key"
                       >
                         <Trash className="w-4 h-4" />
@@ -250,10 +378,26 @@ export default function VaultView({ secrets, onAddSecret, onDeleteSecret }: Vaul
             })}
           </div>
 
-          {/* File Upload Drag & Drop Area (Guidelines compliant) */}
+          {/* File Upload Drag & Drop Area (Real API) */}
           <div className="bg-white rounded-2xl p-5 border border-[#d8c2b3]/25 shadow-xs space-y-4">
             <h3 className="font-sans font-bold text-slate-800 text-sm">Add Secure Documents</h3>
             
+            {/* Upload progress bar */}
+            {uploading && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] text-slate-500">
+                  <span>Uploading...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-[#dc8e47] rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             <div 
               onDragEnter={handleDrag}
               onDragOver={handleDrag}
@@ -264,7 +408,7 @@ export default function VaultView({ secrets, onAddSecret, onDeleteSecret }: Vaul
                 dragActive 
                   ? "border-[#dc8e47] bg-orange-50/20" 
                   : "border-slate-300 bg-slate-50 hover:bg-[#fdfaf7]/50"
-              }`}
+              } ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
             >
               <input 
                 ref={fileInputRef}
@@ -278,22 +422,37 @@ export default function VaultView({ secrets, onAddSecret, onDeleteSecret }: Vaul
               <p className="text-[10px] text-slate-400">or click to browse local files (PDF, PNG up to 10MB)</p>
             </div>
 
-            {/* List of uploaded files */}
+            {/* List of uploaded files from API */}
             {uploadedFiles.length > 0 && (
               <div className="space-y-2 pt-2">
                 <span className="block text-[10px] uppercase font-bold text-slate-400">Securely Lockered Scans</span>
-                {uploadedFiles.map((file, idx) => (
-                  <div key={idx} className="p-3 bg-teal-50/30 border border-teal-100 rounded-xl flex items-center justify-between text-xs font-sans">
-                    <div>
-                      <p className="font-bold text-slate-700">{file.name}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{file.size} • Uploaded {file.date}</p>
+                {uploadedFiles.map((file) => (
+                  <div key={file.id} className="p-3 bg-teal-50/30 border border-teal-100 rounded-xl flex items-center justify-between text-xs font-sans">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-slate-700 truncate">{file.original_name}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {formatFileSize(file.size)} • Uploaded {formatDate(file.created_at)}
+                        {file.uploaded_by_name && ` by ${file.uploaded_by_name}`}
+                      </p>
                     </div>
-                    <button 
-                      onClick={() => handleDeleteFile(idx)}
-                      className="p-1 rounded-md text-slate-300 hover:text-red-500 hover:bg-white transition cursor-pointer"
-                    >
-                      <Trash className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                      <a
+                        href={`/api/vault/files/${file.id}/download`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-[#006783] hover:bg-white transition cursor-pointer"
+                        title="Download"
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+                      <button 
+                        onClick={() => handleDeleteFile(file.id)}
+                        className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-white transition cursor-pointer"
+                        title="Delete"
+                      >
+                        <Trash className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
