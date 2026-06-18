@@ -58,7 +58,7 @@ export default function HomeView({
       });
   }, []);
 
-  const handleToggleReminder = async (id: string, current: boolean) => {
+  const handleToggleReminder = async (id: number, current: boolean) => {
     const token = localStorage.getItem("familyos_token");
     try {
       const res = await fetch(`/api/reminders/${id}`, {
@@ -72,7 +72,7 @@ export default function HomeView({
       if (res.ok) {
         setReminders((prev) =>
           prev.map((r) =>
-            r.id === id ? { ...r, completed: !current } : r
+            r.id === id ? { ...r, completed: Number(!current) } : r
           )
         );
       }
@@ -186,7 +186,7 @@ export default function HomeView({
                     {item.text}
                   </p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    {item.time} • {item.member}
+                    {item.time} • {item.member_name}
                   </p>
                 </div>
               </div>
@@ -209,7 +209,7 @@ export default function HomeView({
 
         {/* Call Alerts Shortcut */}
         <section 
-          onClick={() => onNavigateToTab(5)} // Navigate to CallsView tab
+          onClick={() => onNavigateToTab(4)} // Navigate to CallsView tab
           className="bg-white rounded-2xl p-5 border border-[#d8c2b3]/25 shadow-xs relative overflow-hidden text-left cursor-pointer hover:border-[#dc8e47]/40 transition-all"
         >
           <div className="absolute right-0 top-0 p-4 opacity-10">
@@ -222,7 +222,7 @@ export default function HomeView({
             </p>
           </div>
           <button
-            onClick={(e) => { e.stopPropagation(); onNavigateToTab(5); }}
+            onClick={(e) => { e.stopPropagation(); onNavigateToTab(4); }}
             className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-[#dc8e47] to-[#8e4e08] hover:to-[#dc8e47] text-white font-sans font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-all active:scale-98 cursor-pointer border-none"
           >
             <PhoneCall className="w-4 h-4" /> Open Family Calls
@@ -295,7 +295,7 @@ export default function HomeView({
               ))}
             </div>
             <button
-              onClick={() => onNavigateToTab(2)}
+              onClick={() => onNavigateToTab(3)}
               className="w-full mt-4 py-3 rounded-xl border border-[#8e4e08] text-[#8e4e08] font-sans font-bold text-sm hover:bg-orange-50/30 active:scale-98 transition-all cursor-pointer"
             >
               View All Tasks
@@ -305,7 +305,7 @@ export default function HomeView({
 
         {/* Secure Vault Shortcut Preview */}
         <section 
-          onClick={() => onNavigateToTab(3)} 
+          onClick={() => onNavigateToTab(5)} 
           className="bg-radial from-[#ffdcc2]/20 to-[#3fccfd]/10 p-5 rounded-2xl border border-[#d8c2b3]/20 hover:border-[#3fccfd]/40 transition-all cursor-pointer text-left"
         >
           <div className="flex items-center gap-3">

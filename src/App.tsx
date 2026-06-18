@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Header from "./components/Header";
 import HomeView from "./components/HomeView";
@@ -13,7 +13,6 @@ import AuthScreen from "./components/AuthScreen";
 import PendingApproval from "./components/PendingApproval";
 import SettingsView from "./components/SettingsView";
 import AdminPanel from "./components/AdminPanel";
-import { SOSStatus } from "./types";
 import {
   Home,
   Users,
@@ -76,27 +75,67 @@ interface AuthenticatedAppProps {
 
 function AuthenticatedApp({ currentTab, setCurrentTab }: AuthenticatedAppProps) {
   const [showAdmin, setShowAdmin] = useState(false);
-  const [sosStatuses, setSosStatuses] = useState<SOSStatus[]>([]);
+  const { user } = useAuth();
+
+  // Request browser notification permission on mount
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Periodic check for tasks due today
+  useEffect(() => {
+    const checkDueTasks = async () => {
+      const token = localStorage.getItem("familyos_token");
+      if (!token || !user) return;
+      try {
+        const res = await fetch("/api/tasks", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const tasks = await res.json();
+          const today = new Date().toISOString().split("T")[0];
+          const dueToday = tasks.filter(
+            (t: any) => !t.completed && t.due_date === today && t.assignee_id === user.id
+          );
+          for (const task of dueToday) {
+            sendBrowserNotification(
+              "⏰ Task Due Today",
+              `"${task.title}" is due today!`
+            );
+          }
+        }
+      } catch {}
+    };
+    checkDueTasks();
+    const interval = setInterval(checkDueTasks, 120000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const sendBrowserNotification = (title: string, body: string) => {
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification(title, { body, icon: "/icon.svg" });
+    }
+  };
+
+  const resolveMemberName = async (name: string, token: string): Promise<number | null> => {
+    try {
+      const res = await fetch("/api/members", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const members = await res.json();
+        const member = members.find(
+          (m: any) => m.name.toLowerCase() === name.toLowerCase()
+        );
+        return member ? member.id : null;
+      }
+    } catch {}
+    return null;
+  };
 
   // --- ACTIONS HANDLERS ---
-
-  const handleAddSOSStatus = (status: Omit<SOSStatus, "id" | "timestamp">) => {
-    const newSOS: SOSStatus = {
-      ...status,
-      id: "sos-" + Date.now(),
-      timestamp: "Just now",
-    };
-
-    if (status.status === "assistance") {
-      setCurrentTab(7);
-    }
-
-    setSosStatuses(prev => [newSOS, ...prev]);
-  };
-
-  const handleClearSOS = () => {
-    setSosStatuses([]);
-  };
 
   const handleGenerateGiftSuggestions = async (query: string, recipient: string) => {
     try {
@@ -118,9 +157,16 @@ function AuthenticatedApp({ currentTab, setCurrentTab }: AuthenticatedAppProps) 
   const handleAddParsedItem = async (type: 'reminder' | 'chore' | 'calendar', data: any) => {
     const token = localStorage.getItem("familyos_token") ?? "";
 
+    // Resolve assignee/member name to ID
+    let assigneeId: number | null = null;
+    const nameToFind = data.assignee || data.member;
+    if (nameToFind) {
+      assigneeId = await resolveMemberName(nameToFind, token);
+    }
+
     try {
       if (type === "reminder") {
-        await fetch("/api/reminders", {
+        const res = await fetch("/api/reminders", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -130,11 +176,14 @@ function AuthenticatedApp({ currentTab, setCurrentTab }: AuthenticatedAppProps) 
             text: data.text || "Generic voice reminder",
             time: data.time || "12:00 PM",
             category: data.category || "general",
-            member_id: null,
+            member_id: assigneeId,
           }),
         });
+        if (res.ok) {
+          sendBrowserNotification("Reminder Set", data.text || "Reminder created");
+        }
       } else if (type === "chore") {
-        await fetch("/api/tasks", {
+        const res = await fetch("/api/tasks", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -142,15 +191,21 @@ function AuthenticatedApp({ currentTab, setCurrentTab }: AuthenticatedAppProps) 
           },
           body: JSON.stringify({
             title: data.title || "Voice Chore",
-            description: "",
-            assignee_id: null,
-            due_date: "",
+            description: data.text || "",
+            assignee_id: assigneeId,
+            due_date: data.dueDate || "",
             points: data.points || 10,
             category: "general",
           }),
         });
+        if (res.ok) {
+          sendBrowserNotification(
+            "Task Assigned",
+            `"${data.title || 'New task'}" assigned to ${data.assignee || 'someone'}`
+          );
+        }
       } else if (type === "calendar") {
-        await fetch("/api/events", {
+        const res = await fetch("/api/events", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -160,10 +215,16 @@ function AuthenticatedApp({ currentTab, setCurrentTab }: AuthenticatedAppProps) 
             title: data.title || "Vibe Appointment",
             date: data.date || "2026-06-20",
             time: data.time || "4:00 PM",
-            category: "family",
-            member_id: null,
+            category: data.category || "family",
+            member_id: assigneeId,
           }),
         });
+        if (res.ok) {
+          sendBrowserNotification(
+            "Event Scheduled",
+            data.title || "Calendar event created"
+          );
+        }
       }
     } catch (err) {
       console.error("Failed to add parsed item", err);
@@ -216,13 +277,7 @@ function AuthenticatedApp({ currentTab, setCurrentTab }: AuthenticatedAppProps) 
 
         {currentTab === 6 && <NotificationsView />}
 
-        {currentTab === 7 && (
-          <SOSView
-            sosStatuses={sosStatuses}
-            onAddSOSStatus={handleAddSOSStatus}
-            onClearSOS={handleClearSOS}
-          />
-        )}
+        {currentTab === 7 && <SOSView />}
 
         {currentTab === 8 && (
           <SettingsView onNavigateToAdmin={() => setShowAdmin(true)} />

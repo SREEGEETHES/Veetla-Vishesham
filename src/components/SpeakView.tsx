@@ -26,7 +26,9 @@ export default function SpeakView({ onAddParsedItem }: SpeakViewProps) {
     "Remind Dad to take Morning Vitamins at 8:00 AM",
     "Schedule Mom's Birthday Celebration on Saturday June 20, 2026 at 6:00 PM",
     "Assign a chore to Dad to rake the garden leaves tomorrow",
-    "Add buy organic milk and cookies to key shopping list"
+    "Add buy organic milk and cookies to key shopping list",
+    "Assign a task to Dad: Fix the kitchen sink faucet due 2026-06-20",
+    "Remind Mom to pick up dry cleaning at 5:00 PM"
   ];
 
   const handlePresetSelect = (text: string) => {

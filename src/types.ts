@@ -1,19 +1,12 @@
 export interface Reminder {
-  id: string;
+  id: number;
   text: string;
   time: string;
-  member: string;
-  completed: boolean;
-  category: 'medication' | 'shopping' | 'general' | 'appointment';
-}
-
-export interface Chore {
-  id: string;
-  title: string;
-  assignee: string;
-  points: number;
-  completed: boolean;
-  dueDate: string;
+  member_name: string;
+  member_id: number | null;
+  completed: number;
+  category: string;
+  created_at: string;
 }
 
 export interface GiftIdea {
@@ -24,32 +17,31 @@ export interface GiftIdea {
 }
 
 export interface VaultSecret {
-  id: string;
+  id: number;
   title: string;
-  type: 'wifi' | 'policy' | 'medical' | 'other';
+  type: string;
   secret: string;
   note?: string;
-  lastUpdated: string;
+  created_at: string;
+  owner_name?: string;
 }
 
 export interface CalendarEvent {
-  id: string;
+  id: number;
   title: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   time: string;
-  member: string;
-  category: 'family' | 'school' | 'medical' | 'social';
+  member_name: string;
+  category: string;
 }
 
 export interface SOSStatus {
-  id: string;
+  id: number;
   name: string;
   status: 'safe' | 'assistance';
-  timestamp: string;
-  coordinates?: {
-    latitude: number;
-    longitude: number;
-  };
+  created_at: string;
+  latitude?: number;
+  longitude?: number;
   message?: string;
 }
 
@@ -60,16 +52,15 @@ export interface FamilyMember {
 }
 
 export interface NotificationItem {
-  id: string;
+  id: number;
   text: string;
-  timestamp: string;
-  read: boolean;
-  level: 'info' | 'warning' | 'emergency';
+  created_at: string;
+  read: number;
+  level: string;
 }
 
 export interface FamilyState {
   reminders: Reminder[];
-  chores: Chore[];
   vaultSecrets: VaultSecret[];
   calendarEvents: CalendarEvent[];
   sosStatuses: SOSStatus[];

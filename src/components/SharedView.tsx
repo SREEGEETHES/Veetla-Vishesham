@@ -110,7 +110,7 @@ export default function SharedView() {
     }
   };
 
-  const handleDeleteCalendarEvent = async (id: string) => {
+  const handleDeleteCalendarEvent = async (id: number) => {
     const token = getToken();
     const res = await fetch(`${API_BASE}/events/${id}`, {
       method: "DELETE",
@@ -145,7 +145,7 @@ export default function SharedView() {
     }
   };
 
-  const handleDeleteReminder = async (id: string) => {
+  const handleDeleteReminder = async (id: number) => {
     const token = getToken();
     const res = await fetch(`${API_BASE}/reminders/${id}`, {
       method: "DELETE",
@@ -156,7 +156,7 @@ export default function SharedView() {
     }
   };
 
-  const handleToggleReminder = async (id: string) => {
+  const handleToggleReminder = async (id: number) => {
     const reminder = reminders.find(r => r.id === id);
     if (!reminder) return;
     const token = getToken();
@@ -175,7 +175,7 @@ export default function SharedView() {
 
   // Filtered schedule
   const filteredEvents = events.filter(e => 
-    memberFilter === "All" || e.member === memberFilter || e.member === "Everyone"
+    memberFilter === "All" || e.member_name === memberFilter || e.member_name === "Everyone"
   );
 
   const groceryList = reminders.filter(r => r.category === "shopping");
@@ -251,7 +251,7 @@ export default function SharedView() {
                       {evt.date} • {evt.time}
                     </p>
                     <p className="text-[10px] bg-orange-50 text-[#8e4e08] font-bold px-2.5 py-0.5 rounded-full inline-block mt-2">
-                      {evt.member}
+                      {evt.member_name}
                     </p>
                   </div>
                 </div>
@@ -391,7 +391,7 @@ export default function SharedView() {
                       {shop.text}
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">
-                      Requested by {shop.member}
+                      Requested by {shop.member_name}
                     </p>
                   </div>
                 </div>

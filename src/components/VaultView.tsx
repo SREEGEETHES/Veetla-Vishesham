@@ -5,7 +5,7 @@ import { VaultSecret } from "../types";
 interface VaultFile {
   id: number;
   user_id: number;
-  uploaded_by_name?: string;
+  uploader_name?: string;
   filename: string;
   original_name: string;
   mime_type: string;
@@ -136,7 +136,7 @@ export default function VaultView({}: VaultViewProps) {
     setNewNote("");
   };
 
-  const handleDeleteSecret = async (id: string) => {
+  const handleDeleteSecret = async (id: number) => {
     try {
       const res = await fetch(`/api/vault/items/${id}`, {
         method: "DELETE",
@@ -372,7 +372,7 @@ export default function VaultView({}: VaultViewProps) {
                   {sec.note && (
                     <p className="text-[11px] text-slate-500 mt-2 italic">{sec.note}</p>
                   )}
-                  <span className="text-[9px] text-slate-300 block mt-2">{sec.lastUpdated}</span>
+                  <span className="text-[9px] text-slate-300 block mt-2">{sec.created_at}</span>
                 </div>
               );
             })}
@@ -432,7 +432,7 @@ export default function VaultView({}: VaultViewProps) {
                       <p className="font-bold text-slate-700 truncate">{file.original_name}</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
                         {formatFileSize(file.size)} • Uploaded {formatDate(file.created_at)}
-                        {file.uploaded_by_name && ` by ${file.uploaded_by_name}`}
+                        {file.uploader_name && ` by ${file.uploader_name}`}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 ml-2 flex-shrink-0">

@@ -85,9 +85,10 @@ app.post("/api/auth/register", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const { id, role, approved } = db.createUser(name, email, passwordHash);
-    const token = jwt.sign({ id, name, email, role, approved }, JWT_SECRET, { expiresIn: "7d" });
+    const approvedBool = !!approved;
+    const token = jwt.sign({ id, name, email, role, approved: approvedBool }, JWT_SECRET, { expiresIn: "7d" });
 
-    res.json({ token, user: { id, name, email, role, approved } });
+    res.json({ token, user: { id, name, email, role, approved: approvedBool } });
   } catch (error) {
     console.error("Register error:", error);
     res.status(500).json({ error: "Registration failed" });
@@ -115,15 +116,16 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(403).json({ error: "Account pending approval", approved: false });
     }
 
+    const approvedBool = !!user.approved;
     const token = jwt.sign(
-      { id: user.id, name: user.name, email: user.email, role: user.role, approved: user.approved },
+      { id: user.id, name: user.name, email: user.email, role: user.role, approved: approvedBool },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
 
     res.json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, approved: user.approved }
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, approved: approvedBool }
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -134,7 +136,7 @@ app.post("/api/auth/login", async (req, res) => {
 app.get("/api/auth/me", authenticateToken, (req, res) => {
   const user = db.getUserById((req as any).user.id);
   if (!user) return res.status(404).json({ error: "User not found" });
-  res.json(user);
+  res.json({ ...user, approved: !!user.approved });
 });
 
 app.post("/api/auth/logout", (_req, res) => {
@@ -200,6 +202,18 @@ app.post("/api/tasks", authenticateToken, (req, res) => {
     points || 10,
     category || "general"
   );
+
+  // Notify assignee when a task is assigned to them
+  if (assignee_id && assignee_id !== (req as any).user.id) {
+    const creatorName = (req as any).user.name;
+    const dueText = due_date ? ` (Due: ${due_date})` : "";
+    db.createNotification(
+      assignee_id,
+      `New task: "${title}" assigned by ${creatorName}${dueText}`,
+      "info"
+    );
+  }
+
   res.json({ id, success: true });
 });
 
@@ -218,6 +232,32 @@ app.put("/api/tasks/:id", authenticateToken, (req, res) => {
   if (completed !== undefined) updates.completed = completed ? 1 : 0;
   if (points !== undefined) updates.points = points;
   if (category !== undefined) updates.category = category;
+
+  // Notify creator when task is completed
+  if (completed) {
+    const task = db.getTaskById(id);
+    if (task) {
+      const assigneeName = task.assignee_name || (req as any).user.name;
+      db.createNotification(
+        task.created_by,
+        `Task "${task.title}" completed by ${assigneeName} ✓ (+${task.points} pts)`,
+        "info"
+      );
+    }
+  }
+
+  // Notify assignee if reassigned to someone else
+  if (assignee_id !== undefined) {
+    const task = db.getTaskById(id);
+    if (task && task.assignee_id !== assignee_id && assignee_id !== (req as any).user.id) {
+      const updaterName = (req as any).user.name;
+      db.createNotification(
+        assignee_id,
+        `Task reassigned to you: "${task?.title || title}" by ${updaterName}`,
+        "info"
+      );
+    }
+  }
 
   db.updateTask(id, updates);
   res.json({ success: true });
@@ -248,6 +288,19 @@ app.post("/api/events", authenticateToken, (req, res) => {
 
 app.get("/api/events", authenticateToken, (_req, res) => {
   res.json(db.getEvents());
+});
+
+app.put("/api/events/:id", authenticateToken, (req, res) => {
+  const id = parseInt(req.params.id);
+  const { title, date, time, member_id, category } = req.body;
+  const updates: Record<string, any> = {};
+  if (title !== undefined) updates.title = title;
+  if (date !== undefined) updates.date = date;
+  if (time !== undefined) updates.time = time;
+  if (member_id !== undefined) updates.member_id = member_id;
+  if (category !== undefined) updates.category = category;
+  db.updateEvent(id, updates);
+  res.json({ success: true });
 });
 
 app.delete("/api/events/:id", authenticateToken, (req, res) => {
@@ -443,6 +496,26 @@ app.get("/api/calls/active", authenticateToken, (req, res) => {
   res.json(db.getActiveCalls(userId));
 });
 
+// --- SOS ENDPOINTS ---
+
+app.get("/api/sos", authenticateToken, (_req, res) => {
+  res.json(db.getSosAlerts());
+});
+
+app.post("/api/sos", authenticateToken, (req, res) => {
+  const { name, status, message, latitude, longitude } = req.body;
+  if (!name || !status) {
+    return res.status(400).json({ error: "Name and status are required" });
+  }
+  const id = db.createSosAlert(name, status, message || "", latitude || null, longitude || null);
+  res.json({ id, success: true });
+});
+
+app.delete("/api/sos", authenticateToken, (_req, res) => {
+  db.clearSosAlerts();
+  res.json({ success: true });
+});
+
 // --- AI ENDPOINTS (preserved from original) ---
 
 // Initialize Lazy Gemini SDK Client
@@ -571,7 +644,7 @@ Output MUST be structured as a JSON object matching this schema:
 }`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: formattedPrompt,
       config: {
         responseMimeType: "application/json",
@@ -634,7 +707,7 @@ Context or extra notes: ${query || "loves cozy gardens, botanical design, premiu
 Output MUST be a JSON array of strings, each string should be a gift idea with brief description and a relevant emoji prefix.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: formattedPrompt,
       config: {
         responseMimeType: "application/json",

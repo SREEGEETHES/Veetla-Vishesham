@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isAdmin = user?.role === 'admin';
-  const isApproved = user?.approved === true;
+  const isApproved = user?.approved === true || user?.approved === 1;
 
   return (
     <AuthContext.Provider value={{ token, user, login, logout, isAdmin, isApproved, authFetch, loading }}>

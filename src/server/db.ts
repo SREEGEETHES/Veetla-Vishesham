@@ -119,6 +119,17 @@ async function init() {
     )
   `);
   db.run(`
+    CREATE TABLE IF NOT EXISTS sos_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('safe','assistance')),
+      message TEXT,
+      latitude REAL,
+      longitude REAL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  db.run(`
     CREATE TABLE IF NOT EXISTS calls (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       caller_id INTEGER REFERENCES users(id),
@@ -222,6 +233,16 @@ export function getTasks() {
     LEFT JOIN users c ON t.created_by = c.id
     ORDER BY t.created_at DESC
   `);
+}
+
+export function getTaskById(id: number) {
+  return queryOne(`
+    SELECT t.*, u.name as assignee_name, c.name as creator_name
+    FROM tasks t
+    LEFT JOIN users u ON t.assignee_id = u.id
+    LEFT JOIN users c ON t.created_by = c.id
+    WHERE t.id = ?
+  `, [id]);
 }
 
 export function createTask(title: string, description: string, assigneeId: number | null, createdBy: number, dueDate: string | null, points: number, category: string) {
@@ -409,6 +430,32 @@ export function getActiveCalls(userId: number) {
     WHERE (c.caller_id = ? OR c.callee_id = ?) AND c.status IN ('pending', 'active')
     ORDER BY c.created_at DESC
   `, [userId, userId]);
+}
+
+// SOS alert helpers
+export function getSosAlerts() {
+  return queryAll("SELECT * FROM sos_alerts ORDER BY created_at DESC");
+}
+
+export function createSosAlert(name: string, status: string, message: string, latitude: number | null, longitude: number | null) {
+  const r = run(
+    "INSERT INTO sos_alerts (name, status, message, latitude, longitude) VALUES (?, ?, ?, ?, ?)",
+    [name, status, message, latitude, longitude]
+  );
+  return r.lastInsertRowid;
+}
+
+export function clearSosAlerts() {
+  run("DELETE FROM sos_alerts");
+}
+
+// Event update helper
+export function updateEvent(id: number, updates: Record<string, any>) {
+  const fields = Object.keys(updates);
+  if (fields.length === 0) return;
+  const setClause = fields.map(f => `${f} = ?`).join(", ");
+  const values = fields.map(f => updates[f]);
+  run(`UPDATE events SET ${setClause} WHERE id = ?`, [...values, id]);
 }
 
 // Export init for server startup

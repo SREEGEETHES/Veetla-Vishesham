@@ -30,7 +30,7 @@ export default function NotificationsView() {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const handleMarkRead = async (id: string) => {
+  const handleMarkRead = async (id: number) => {
     try {
       const res = await fetch(`/api/notifications/${id}/read`, {
         method: "POST",
@@ -38,7 +38,7 @@ export default function NotificationsView() {
       });
       if (res.ok) {
         setNotifications(prev =>
-          prev.map(n => n.id === id ? { ...n, read: true } : n)
+          prev.map(n => n.id === id ? { ...n, read: 1 } : n)
         );
       }
     } catch (err) {
@@ -60,34 +60,32 @@ export default function NotificationsView() {
     }
   };
 
-  const getLevelIcon = (level: NotificationItem['level']) => {
+  const getLevelIcon = (level: string) => {
     if (level === 'emergency') return <AlertOctagon className="w-4 h-4 text-[#ba1a1a]" />;
     if (level === 'warning') return <AlertTriangle className="w-4 h-4 text-orange-500" />;
     return <Info className="w-4 h-4 text-[#006783]" />;
   };
 
-  const getLevelColor = (level: NotificationItem['level']) => {
+  const getLevelColor = (level: string) => {
     if (level === 'emergency') return 'bg-red-50 border-red-200';
     if (level === 'warning') return 'bg-orange-50 border-orange-200';
     return 'bg-slate-50 border-slate-200';
   };
 
-  const getLevelDot = (level: NotificationItem['level']) => {
+  const getLevelDot = (level: string) => {
     if (level === 'emergency') return 'bg-[#ba1a1a]';
     if (level === 'warning') return 'bg-orange-500';
     return 'bg-[#006783]';
   };
 
   // Group by date
-  const now = new Date();
-  const today = now.toDateString();
+  const todayStr = new Date().toDateString();
   const isToday = (ts: string) => {
-    if (ts === "Just now" || ts === "Emergency") return true;
-    return false;
+    try { return new Date(ts).toDateString() === todayStr; } catch { return false; }
   };
 
-  const todayNotifications = notifications.filter(n => isToday(n.timestamp));
-  const earlierNotifications = notifications.filter(n => !isToday(n.timestamp));
+  const todayNotifications = notifications.filter(n => isToday(n.created_at));
+  const earlierNotifications = notifications.filter(n => !isToday(n.created_at));
 
   return (
     <div className="space-y-6 pt-2 pb-12 px-4 max-w-lg mx-auto text-left" id="notificationsView">
@@ -171,10 +169,10 @@ export default function NotificationsView() {
 
 interface NotificationCardProps {
   item: NotificationItem;
-  onMarkRead: (id: string) => void;
-  getLevelIcon: (level: NotificationItem['level']) => React.ReactElement;
-  getLevelColor: (level: NotificationItem['level']) => string;
-  getLevelDot: (level: NotificationItem['level']) => string;
+  onMarkRead: (id: number) => void;
+  getLevelIcon: (level: string) => React.ReactElement;
+  getLevelColor: (level: string) => string;
+  getLevelDot: (level: string) => string;
 }
 
 function NotificationCard({ item, onMarkRead, getLevelIcon, getLevelColor, getLevelDot }: NotificationCardProps) {
@@ -187,7 +185,7 @@ function NotificationCard({ item, onMarkRead, getLevelIcon, getLevelColor, getLe
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1">
             {getLevelIcon(item.level)}
-            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">{item.timestamp}</span>
+            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">{item.created_at}</span>
           </div>
           <p className={`text-sm font-sans leading-relaxed ${item.read ? 'text-slate-500' : 'text-slate-800 font-medium'}`}>
             {item.text}

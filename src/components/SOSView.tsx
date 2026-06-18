@@ -1,14 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { AlertOctagon, HeartHandshake, PhoneCall, ShieldAlert, CheckCircle, Navigation, Radio } from "lucide-react";
 import { SOSStatus } from "../types";
 
-interface SOSViewProps {
-  sosStatuses: SOSStatus[];
-  onAddSOSStatus: (status: Omit<SOSStatus, "id" | "timestamp">) => void;
-  onClearSOS: () => void;
-}
-
-export default function SOSView({ sosStatuses, onAddSOSStatus, onClearSOS }: SOSViewProps) {
+export default function SOSView() {
+  const [sosStatuses, setSosStatuses] = useState<SOSStatus[]>([]);
   const [sosPulsing, setSosPulsing] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
@@ -16,69 +11,79 @@ export default function SOSView({ sosStatuses, onAddSOSStatus, onClearSOS }: SOS
   const [familyStatus, setFamilyStatus] = useState<'safe' | 'assistance'>('safe');
   const [reporterName, setReporterName] = useState("Dad");
 
-  // Fetch true geolocation coordinates (requestFramePermissions is granted in metadata)
+  const token = localStorage.getItem("familyos_token") ?? "";
+
+  const fetchSosAlerts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/sos", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setSosStatuses(Array.isArray(data) ? data : []);
+      }
+    } catch { /* silent */ }
+  }, [token]);
+
+  useEffect(() => {
+    fetchSosAlerts();
+  }, [fetchSosAlerts]);
+
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setCoords({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude
-          });
-        },
-        (err) => {
-          console.warn("Geolocation coordinate acquisition failed or blocked. Fallback applied", err);
-          // Default to San Francisco
-          setCoords({ lat: 37.7749, lng: -122.4194 });
-        }
+        (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => setCoords({ lat: 37.7749, lng: -122.4194 })
       );
     } else {
       setCoords({ lat: 37.7749, lng: -122.4194 });
     }
   }, []);
 
-  // SOS Countdown timer
   useEffect(() => {
     let timer: any;
     if (sosPulsing && countdown > 0) {
-      timer = setInterval(() => {
-        setCountdown(prev => prev - 1);
-      }, 1000);
+      timer = setInterval(() => setCountdown(prev => prev - 1), 1000);
     } else if (countdown === 0) {
-      // countdown finished, trigger state upload automatically
-      onAddSOSStatus({
-        name: "SOS SYSTEM Dispatcher",
-        status: "assistance",
-        message: "SYSTEM DISPATCH INITIATED. Local Coordinate Rescue Broadcast triggered.",
-        coordinates: coords ? { latitude: coords.lat, longitude: coords.lng } : undefined
-      });
+      fetch("/api/sos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: "SOS SYSTEM Dispatcher",
+          status: "assistance",
+          message: "SYSTEM DISPATCH INITIATED. Rescue Broadcast triggered.",
+          latitude: coords?.lat ?? null,
+          longitude: coords?.lng ?? null,
+        }),
+      }).then(() => fetchSosAlerts());
       setCountdown(5);
       setSosPulsing(false);
     }
-
     return () => clearInterval(timer);
   }, [sosPulsing, countdown]);
 
-  const handlePanicTrigger = () => {
-    setSosPulsing(true);
-    setCountdown(5);
-  };
+  const handlePanicTrigger = () => { setSosPulsing(true); setCountdown(5); };
+  const handleStopPanic = () => { setSosPulsing(false); setCountdown(5); };
 
-  const handleStopPanic = () => {
-    setSosPulsing(false);
-    setCountdown(5);
-  };
-
-  const handleSubmitStatus = (e: React.FormEvent) => {
+  const handleSubmitStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customMsg.trim()) return;
-    onAddSOSStatus({
-      name: reporterName,
-      status: familyStatus,
-      message: customMsg,
-      coordinates: coords ? { latitude: coords.lat, longitude: coords.lng } : undefined
+    await fetch("/api/sos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        name: reporterName,
+        status: familyStatus,
+        message: customMsg,
+        latitude: coords?.lat ?? null,
+        longitude: coords?.lng ?? null,
+      }),
     });
     setCustomMsg("");
+    fetchSosAlerts();
+  };
+
+  const handleClearSOS = async () => {
+    await fetch("/api/sos", { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    setSosStatuses([]);
   };
 
   return (
@@ -164,7 +169,7 @@ export default function SOSView({ sosStatuses, onAddSOSStatus, onClearSOS }: SOS
           <div className="flex justify-between items-center">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Safe-check Log</span>
             <button 
-              onClick={onClearSOS}
+              onClick={handleClearSOS}
               className="text-[10px] font-bold text-[#ba1a1a] hover:underline cursor-pointer"
             >
               Clear Records
@@ -190,12 +195,12 @@ export default function SOSView({ sosStatuses, onAddSOSStatus, onClearSOS }: SOS
                 
                 <p className="text-xs text-slate-600 leading-relaxed font-sans">{sos.message}</p>
                 
-                {sos.coordinates && (
+                {sos.latitude && (
                   <p className="text-[9px] font-mono text-slate-400 mt-2 flex items-center gap-1">
-                    <Navigation className="w-3.5 h-3.5" /> GPS Coordinates: {sos.coordinates.latitude.toFixed(4)}, {sos.coordinates.longitude.toFixed(4)}
+                    <Navigation className="w-3.5 h-3.5" /> GPS: {Number(sos.latitude).toFixed(4)}, {Number(sos.longitude).toFixed(4)}
                   </p>
                 )}
-                <span className="text-[9px] text-slate-300 block mt-2">{sos.timestamp}</span>
+                <span className="text-[9px] text-slate-300 block mt-2">{sos.created_at}</span>
               </div>
             ))}
           </div>
