@@ -1,0 +1,10 @@
+{
+  "name": "Veetla Vishesham",
+  "description": "A high-performance modern operating system for the family. Features include AI-grounded speak routing, unified calendar scheduling, chore tracking, secure vault storage, and high-urgency rescue features.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
