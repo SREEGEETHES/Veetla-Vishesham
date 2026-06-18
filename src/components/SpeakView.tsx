@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Mic, Sparkles, AlertCircle, CheckCircle, ChevronRight, HelpCircle, AudioLines } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { Mic, Sparkles, AlertCircle, CheckCircle, ChevronRight, HelpCircle, AudioLines, MicOff } from "lucide-react";
 
 interface SpeakViewProps {
   onAddParsedItem: (type: 'reminder' | 'chore' | 'calendar', data: any) => void;
@@ -37,18 +37,50 @@ export default function SpeakView({ onAddParsedItem }: SpeakViewProps) {
     setIsApplied(false);
   };
 
-  const handleSimulateVoice = () => {
-    setIsRecording(true);
+  const recognitionRef = useRef<any>(null);
+
+  const handleVoiceInput = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setErrorMessage("Speech recognition is not supported in this browser. Try Chrome or Edge.");
+      return;
+    }
+
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+      return;
+    }
+
     setParsedResult(null);
     setIsApplied(false);
+    setErrorMessage("");
+    setIsRecording(true);
 
-    // Simulate 3 seconds vocal pickup
-    setTimeout(() => {
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInputText(transcript);
       setIsRecording(false);
-      // set random preset
-      const randomPreset = presets[Math.floor(Math.random() * presets.length)];
-      setInputText(randomPreset);
-    }, 2200);
+    };
+
+    recognition.onerror = (event: any) => {
+      setIsRecording(false);
+      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        setErrorMessage(`Speech recognition error: ${event.error}`);
+      }
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognition.start();
   };
 
   const handleSubmitParse = async (e: React.FormEvent) => {
@@ -139,12 +171,14 @@ export default function SpeakView({ onAddParsedItem }: SpeakViewProps) {
             />
             <button
               type="button"
-              onClick={handleSimulateVoice}
-              disabled={isRecording || isThinking}
-              className="absolute right-2.5 top-2.5 p-1.5 rounded-lg bg-orange-100 text-[#8e4e08] hover:bg-orange-200 transition-all cursor-pointer"
-              title="Simulate Voice Input"
+              onClick={handleVoiceInput}
+              disabled={isThinking}
+              className={`absolute right-2.5 top-2.5 p-1.5 rounded-lg transition-all cursor-pointer ${
+                isRecording ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-orange-100 text-[#8e4e08] hover:bg-orange-200'
+              }`}
+              title={isRecording ? 'Stop recording' : 'Start voice input'}
             >
-              <Mic className="w-4 h-4" />
+              {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </button>
           </div>
         </div>

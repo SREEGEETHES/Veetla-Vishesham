@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Header from "./components/Header";
 import HomeView from "./components/HomeView";
@@ -75,7 +75,10 @@ interface AuthenticatedAppProps {
 
 function AuthenticatedApp({ currentTab, setCurrentTab }: AuthenticatedAppProps) {
   const [showAdmin, setShowAdmin] = useState(false);
+  const [taskCall, setTaskCall] = useState<{ body: string } | null>(null);
   const { user } = useAuth();
+  const lastNotifIdRef = useRef(0);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Request browser notification permission on mount
   useEffect(() => {
@@ -118,6 +121,75 @@ function AuthenticatedApp({ currentTab, setCurrentTab }: AuthenticatedAppProps) 
       new Notification(title, { body, icon: "/icon.svg" });
     }
   };
+
+  function playRingtone() {
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      const now = ctx.currentTime;
+      for (let i = 0; i < 4; i++) {
+        const t = i * 0.5;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.value = i % 2 === 0 ? 440 : 480;
+        gain.gain.setValueAtTime(0.3, now + t);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + t + 0.4);
+        osc.start(now + t);
+        osc.stop(now + t + 0.45);
+      }
+      if ("vibrate" in navigator) {
+        navigator.vibrate([200, 100, 200, 100, 200]);
+      }
+    } catch {}
+  }
+
+  function stopRingtone() {
+    try {
+      audioCtxRef.current?.close();
+      audioCtxRef.current = null;
+    } catch {}
+  }
+
+  // Poll for new task notifications with call overlay
+  useEffect(() => {
+    const pollNotifications = async () => {
+      const token = localStorage.getItem("familyos_token");
+      if (!token || !user) return;
+      try {
+        const res = await fetch("/api/notifications", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const notifs = await res.json();
+          if (Array.isArray(notifs) && notifs.length > 0) {
+            const maxId = Math.max(...notifs.map((n: any) => n.id));
+            if (maxId > lastNotifIdRef.current && lastNotifIdRef.current > 0) {
+              const newNotifs = notifs.filter((n: any) => n.id > lastNotifIdRef.current);
+              const taskNotif = newNotifs.find(
+                (n: any) => n.text.includes("New task:") || n.text.includes("Task assigned") || n.text.includes("reassigned") || n.text.includes("task completed")
+              );
+              if (taskNotif && !taskCall) {
+                setTaskCall({ body: taskNotif.text });
+                playRingtone();
+              }
+            }
+            lastNotifIdRef.current = maxId;
+          }
+        }
+      } catch {}
+    };
+    pollNotifications();
+    const interval = setInterval(pollNotifications, 5000);
+    return () => {
+      clearInterval(interval);
+      stopRingtone();
+    };
+  }, [user]);
 
   const resolveMemberName = async (name: string, token: string): Promise<number | null> => {
     try {
@@ -283,6 +355,44 @@ function AuthenticatedApp({ currentTab, setCurrentTab }: AuthenticatedAppProps) 
           <SettingsView onNavigateToAdmin={() => setShowAdmin(true)} />
         )}
       </main>
+
+      {/* Incoming Task Call Overlay */}
+      {taskCall && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-up">
+            <div className="bg-gradient-to-b from-[#8e4e08] to-[#dc8e47] p-6 text-center text-white">
+              <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
+                <Phone className="w-10 h-10 text-white" />
+              </div>
+              <p className="text-xs uppercase tracking-widest font-bold opacity-80">Incoming Task Call</p>
+            </div>
+            <div className="p-6 text-center">
+              <p className="text-sm text-slate-700 leading-relaxed mb-6">{taskCall.body}</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    stopRingtone();
+                    setTaskCall(null);
+                  }}
+                  className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-bold text-xs hover:bg-red-50 transition cursor-pointer"
+                >
+                  Dismiss
+                </button>
+                <button
+                  onClick={() => {
+                    stopRingtone();
+                    setTaskCall(null);
+                    setCurrentTab(3);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#006783] to-[#3fccfd] text-white font-bold text-xs hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <ClipboardList className="w-4 h-4" /> View Task
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#d8c2b3]/40 shadow-lg py-2 rounded-t-2xl max-w-lg mx-auto">
