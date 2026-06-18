@@ -10,3 +10,7 @@ coverage/
 # SQLite database and uploaded files
 data/
 uploads/
+
+# Planning artifacts
+.kimchi/
+plan.docx
