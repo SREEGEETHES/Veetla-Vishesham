@@ -15,16 +15,6 @@
 
 ---
 
-## 👥 Contributors
-
-| Contributor | Role | Profile |
-| :--- | :--- | :--- |
-| **Sreegeethesh** | Project Lead & Creator | [@SREEGEETHES](https://github.com/SREEGEETHES) |
-| **Claude** | AI Code Partner | [@claude](https://github.com/claude) |
-| **Google AI Studio** | AI Development Environment | [Google AI Studio](https://ai.studio) |
-
----
-
 ## 🛠️ Tech Stack
 
 - **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, Lucide Icons, Motion
