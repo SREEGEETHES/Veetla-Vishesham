@@ -6,11 +6,3 @@ coverage/
 *.log
 .env*
 !.env.example
-
-# SQLite database and uploaded files
-data/
-uploads/
-
-# Planning artifacts
-.kimchi/
-plan.docx

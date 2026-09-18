@@ -1,35 +1,26 @@
 {
-  "name": "FamilyOS",
+  "id": "/",
+  "name": "FamilyOS - Family Assistant",
   "short_name": "FamilyOS",
-  "description": "Your family's shared operating system — tasks, calendar, vault, and more.",
+  "description": "Free Family Assistant with Voice Chore Recorder, Document Vault, Emergency SOS, and Family Events.",
   "start_url": "/",
-  "display": "standalone",
-  "background_color": "#f9f9f9",
-  "theme_color": "#dc8e47",
-  "orientation": "portrait",
   "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#DC8E47",
+  "background_color": "#F9F9F9",
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "any",
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ],
-  "categories": ["productivity", "lifestyle"],
-  "screenshots": [],
-  "shortcuts": [
-    {
-      "name": "Tasks",
-      "short_name": "Tasks",
-      "url": "/?tab=tasks",
-      "description": "Manage family tasks and scoreboard"
+      "purpose": "any"
     },
     {
-      "name": "Family Space",
-      "short_name": "Space",
-      "url": "/?tab=shared",
-      "description": "Calendar and shopping list"
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }

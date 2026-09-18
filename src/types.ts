@@ -1,101 +1,94 @@
-export interface Reminder {
-  id: number;
-  text: string;
-  time: string;
-  member_name: string;
-  member_id: number | null;
-  completed: number;
-  category: string;
-  created_at: string;
-}
+export type Language = 'en' | 'ta';
 
-export interface GiftIdea {
+export type Screen = 'home' | 'vault' | 'sos' | 'shared' | 'speak';
+
+export interface User {
   id: string;
-  recipient: string;
-  ideas: string[];
-  date: string;
-}
-
-export interface VaultSecret {
-  id: number;
-  title: string;
-  type: string;
-  secret: string;
-  note?: string;
-  created_at: string;
-  owner_name?: string;
-}
-
-export interface CalendarEvent {
-  id: number;
-  title: string;
-  date: string;
-  time: string;
-  member_name: string;
-  category: string;
-}
-
-export interface SOSStatus {
-  id: number;
+  username: string;
   name: string;
-  status: 'safe' | 'assistance';
-  created_at: string;
-  latitude?: number;
-  longitude?: number;
-  message?: string;
+  role: 'master' | 'member';
+  relationship: string;
+  avatar: string;
+  phone?: string;
+  telegramUsername?: string;
+  callMeBotApiKey?: string;
+  language?: Language;
+  password?: string;
+}
+
+export interface AppConfig {
+  callMeBotApiKey: string;
+  telegramUsername: string;
+  telegramPhone: string;
+  geminiApiKey: string;
+  familyName: string;
+}
+
+export interface ReminderItem {
+  id: string;
+  title: string;
+  time: string;
+  targetTimestamp?: number;
+  callTimestamp?: number;
+  assignee: string;
+  status: 'pending' | 'completed';
+  category: 'medication' | 'shopping' | 'chore' | 'general';
+  method: 'call' | 'notification';
+  isCalled?: boolean;
+}
+
+export interface VaultDocument {
+  id: string;
+  name: string;
+  size: string;
+  bytes: number;
+  dateAdded: string;
+  type: 'pdf' | 'image' | 'text';
+  category: 'id' | 'travel' | 'medical' | 'home';
+  previewUrl?: string;
+  encryptedHash: string;
+  uploadedBy?: string;
 }
 
 export interface FamilyMember {
+  id: string;
+  username?: string;
   name: string;
-  role: string;
+  role: 'master' | 'member';
+  relationship: string;
+  language: 'English' | 'Tamil' | 'Telugu';
   avatar: string;
+  phone?: string;
+  password?: string;
 }
 
-export interface NotificationItem {
-  id: number;
-  text: string;
-  created_at: string;
-  read: number;
-  level: string;
-}
-
-export interface FamilyState {
-  reminders: Reminder[];
-  vaultSecrets: VaultSecret[];
-  calendarEvents: CalendarEvent[];
-  sosStatuses: SOSStatus[];
-  notifications: NotificationItem[];
-}
-
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: 'admin' | 'member';
-  approved: boolean;
-  avatar?: string;
-}
-
-export interface Task {
-  id: number;
+export interface MilestoneEvent {
+  id: string;
   title: string;
-  description?: string;
-  assignee_id: number;
-  assignee_name?: string;
-  created_by: number;
-  due_date: string;
-  completed: boolean;
-  points: number;
-  category: string;
-  created_at: string;
+  personNames?: string;
+  date: string;
+  daysRemaining: string;
+  type: 'anniversary' | 'birthday' | 'visit' | 'rule' | 'home';
+  description: string;
+  assignee?: string;
+  image?: string;
+  actionLabel?: string;
+  isMandatory?: boolean;
 }
 
-export interface FamilyCall {
-  id: number;
-  caller_id: number;
-  caller_name?: string;
-  callee_id: number;
-  callee_name?: string;
-  status: 'pending' | 'active' | 'ended';
-  created_at: string;
+export interface MemoryItem {
+  id: string;
+  caption: string;
+  date: string;
+  imageUrl: string;
+  uploadedBy: string;
+}
+
+export interface SystemNotification {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  type: 'alert' | 'call' | 'reminder' | 'security';
+  read: boolean;
 }

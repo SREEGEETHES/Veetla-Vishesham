@@ -1,39 +1,63 @@
-# FamilyOS
+# Veetla Vishesham (வீட்ல விசேஷம்) - FamilyOS
 
-A self-hostable family mobile app — tasks, calendar, vault, calls, and more. Built with React + Express + SQLite.
+> An intelligent, bilingual (Tamil & English) family coordination operating system built with React, Vite, Tailwind CSS, Firebase Firestore, and Telegram Voice Call Automation.
 
-## Tech Stack
+---
 
-- **Frontend**: React 19, Vite, Tailwind CSS v4
-- **Backend**: Express.js
-- **Database**: SQLite via sql.js
-- **Auth**: JWT + bcrypt
-- **AI**: Google Gemini API (optional)
-- **Real-time**: WebRTC signaling via Express
+## 🌟 Core Features
 
-## Setup
+- **Automated Telegram Voice Calls**: Automated VoIP chime and voice dispatch powered by CallMeBot & Telegram proxy for chores, medication alerts, and milestone celebrations.
+- **Strict Role-Based Authentication & Privacy**: Master Admin console (`/admin`) and secure member spaces with non-bypassable PIN/password verification.
+- **Family Milestone & Event Engine**: Automated celebration broadcasts to the entire household on birthdays, anniversaries, and family events.
+- **Bilingual Experience**: Dynamic real-time language toggle between English and Tamil (தமிழ்).
+- **Persistent PWA Architecture**: Offline-ready progressive web app with standalone session persistence across browser and mobile app restarts.
+- **Real-Time Cloud Synchronization**: Secured with Firebase Firestore cloud storage and custom security rules.
 
-1. `npm install`
-2. Create `.env` from `.env.example` and set `JWT_SECRET` (required) and optionally `GEMINI_API_KEY`
-3. `npm run dev` — development server on port 3000
-4. `npm run build && npm start` — production build
+---
 
-## Self-hosting
+## 👥 Contributors
 
-- App runs on **port 3000** by default.
-- First registered user automatically becomes **admin**.
-- Subsequent users require **admin approval** before login.
-- File uploads stored in `./uploads/vault/`
-- Database stored in `./data/familyos.db`
+| Contributor | Role | Profile |
+| :--- | :--- | :--- |
+| **Sreegeethesh** | Project Lead & Creator | [@SREEGEETHES](https://github.com/SREEGEETHES) |
+| **Claude** | AI Code Partner | [@claude](https://github.com/claude) |
+| **Google AI Studio** | AI Development Environment | [Google AI Studio](https://ai.studio) |
 
-## Features
+---
 
-- Tasks & chore scoreboard with points
-- Shared calendar with events
-- AI-powered voice command parser (Gemini or local fallback)
-- Gift suggestion engine
-- Encrypted vault for secrets and files
-- Family video/voice calls (WebRTC)
-- SOS emergency beacon
-- Notification center
-- Admin panel for user approval
+## 🛠️ Tech Stack
+
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, Lucide Icons, Motion
+- **Backend / Services**: Express 5, Telegram CallMeBot API, Firebase Firestore
+- **Security**: Strict Admin RBAC, Salted/Configured PIN verification, Firestore Security Rules
+
+---
+
+## 🚀 Getting Started
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/SREEGEETHES/Veetla-Vishesham.git
+cd Veetla-Vishesham
+```
+
+### 2. Install Dependencies
+```bash
+npm install
+```
+
+### 3. Run Development Server
+```bash
+npm run dev
+```
+
+### 4. Build for Production
+```bash
+npm run build
+```
+
+---
+
+## 📄 License
+
+MIT © [Sreegeethesh](https://github.com/SREEGEETHES)

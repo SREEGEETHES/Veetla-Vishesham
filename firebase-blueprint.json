@@ -1,0 +1,125 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with authentication and role",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string", "maxLength": 50 },
+        "name": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["master", "member"] },
+        "relationship": { "type": "string", "maxLength": 50 },
+        "avatar": { "type": "string", "maxLength": 500000 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "language": { "type": "string", "enum": ["en", "ta"] },
+        "passwordHash": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "username", "name", "role"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Master configuration and API keys",
+      "type": "object",
+      "properties": {
+        "callMeBotApiKey": { "type": "string", "maxLength": 100 },
+        "telegramUsername": { "type": "string", "maxLength": 100 },
+        "telegramPhone": { "type": "string", "maxLength": 30 },
+        "geminiApiKey": { "type": "string", "maxLength": 200 },
+        "familyName": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "Reminder": {
+      "title": "Reminder",
+      "description": "Family chore or task reminder",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "time": { "type": "string", "maxLength": 20 },
+        "assignee": { "type": "string", "maxLength": 100 },
+        "status": { "type": "string", "enum": ["pending", "completed"] },
+        "category": { "type": "string", "enum": ["medication", "shopping", "chore", "general"] },
+        "method": { "type": "string", "enum": ["call", "notification"] },
+        "createdBy": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title", "time", "assignee", "status", "category", "method"]
+    },
+    "VaultDocument": {
+      "title": "VaultDocument",
+      "description": "Stored family documents up to 2MB",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 200 },
+        "size": { "type": "string", "maxLength": 50 },
+        "bytes": { "type": "number" },
+        "dateAdded": { "type": "string", "maxLength": 50 },
+        "type": { "type": "string", "enum": ["pdf", "image", "text"] },
+        "category": { "type": "string", "enum": ["id", "travel", "medical", "home"] },
+        "previewUrl": { "type": "string", "maxLength": 3000000 },
+        "uploadedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "name", "bytes", "type", "category"]
+    },
+    "FamilyEvent": {
+      "title": "FamilyEvent",
+      "description": "Shared family events, birthdays, anniversaries, and milestones",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "date": { "type": "string", "maxLength": 50 },
+        "daysRemaining": { "type": "string", "maxLength": 50 },
+        "type": { "type": "string", "enum": ["anniversary", "birthday", "visit", "rule", "home"] },
+        "description": { "type": "string", "maxLength": 500 },
+        "personName": { "type": "string", "maxLength": 100 },
+        "isMandatory": { "type": "boolean" },
+        "image": { "type": "string", "maxLength": 500000 }
+      },
+      "required": ["id", "title", "date", "type"]
+    },
+    "Memory": {
+      "title": "Memory",
+      "description": "Family memory photo and caption",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "caption": { "type": "string", "maxLength": 200 },
+        "date": { "type": "string", "maxLength": 50 },
+        "imageUrl": { "type": "string", "maxLength": 3000000 },
+        "uploadedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "caption", "imageUrl"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and login credentials"
+    },
+    "/settings/{settingId}": {
+      "schema": "AppConfig",
+      "description": "Master settings and API keys"
+    },
+    "/reminders/{reminderId}": {
+      "schema": "Reminder",
+      "description": "Family chores and reminders"
+    },
+    "/documents/{documentId}": {
+      "schema": "VaultDocument",
+      "description": "Encrypted vault documents under 2MB"
+    },
+    "/events/{eventId}": {
+      "schema": "FamilyEvent",
+      "description": "Family events, birthdays, and anniversaries"
+    },
+    "/memories/{memoryId}": {
+      "schema": "Memory",
+      "description": "Family memories album"
+    }
+  }
+}
